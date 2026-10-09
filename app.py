@@ -141,4 +141,101 @@ renderCart(); calcTotal();
 """
 
 ADMIN_TEMPLATE = """
-<html><head><meta name=viewport content="width=device-width,initial-scale=1"><style>body{font-family:system-ui;padding:15px;background:#0a0a0f;color:white} input,select{padding:12px;width:100%;max-width:420px;margin:6px 0;border-radius:12px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.5);color:white} button{padding:12px 18px;border-radius:12px;background:linear-gradient(90deg,#ec4899,#8b5cf6);color:white;border:none;font-weight:800;cursor:pointer}.card{background:rgba(255,255,255,0.06);padding
+<html><head><meta name=viewport content="width=device-width,initial-scale=1"><style>body{font-family:system-ui;padding:15px;background:#0a0a0f;color:white} input,select{padding:12px;width:100%;max-width:420px;margin:6px 0;border-radius:12px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.5);color:white} button{padding:12px 18px;border-radius:12px;background:linear-gradient(90deg,#ec4899,#8b5cf6);color:white;border:none;font-weight:800;cursor:pointer}.card{background:rgba(255,255,255,0.06);padding:12px;border-radius:16px;margin:10px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap} img.th{width:70px;height:70px;object-fit:cover;border-radius:12px}.note{background:rgba(255,193,7,0.15);border:1px solid #ffc107;color:#ffeb3b;padding:12px;border-radius:12px;margin:12px 0}</style></head><body>
+<h1>👑 ADMIN MEGA v8 — 10 Categories</h1>
+<a href="/" style=color:#ff6ec7;text-decoration:none;font-weight:700>← View Shop LIVE</a> | <span style=opacity:0.6>Shop: justwearwigs.onrender.com</span>
+<div class=note>⚠️ NOTE: Delivery prices will depend on the motor rider — Already fixed in 4 places on shop! MoMo: 0594204990</div>
+
+<h3>📸 Upload Wig / Accessory / Sun Glasses / Bundle — From Gallery</h3>
+<form action="/add-wig" method=post enctype=multipart/form-data>
+<input name=name placeholder="Name: e.g., Pixie Cut Blonde, Silky Straight 20inch, Designer Sun Glass" required><br>
+<input name=price type=number placeholder="Price GHS (e.g., 350)" required><br>
+<input name=stock type=number value=5 placeholder="Stock" required><br>
+<label>Category (10 total)</label><br>
+<select name=category required>{% for c in cats %}<option>{{c}}</option>{% endfor %}</select><br>
+<label>Image — Choose from Gallery</label><br>
+<input type=file name=image required accept=image/*><br>
+<button>🚀 Add to Shop</button>
+</form>
+
+<h3>✏️ Edit Names / Prices / Stock / Category — Change Anytime</h3>
+{% for w in data.wigs %}<div class=card>
+<img class=th src="/{{w.image}}">
+<form action="/edit-wig/{{w.id}}" method=post style=display:flex;gap:6px;flex-wrap:wrap;align-items:center>
+<input name=name value="{{w.name}}" style=width:170px>
+<input name=price type=number value="{{w.price}}" style=width:80px>
+<input name=stock type=number value="{{w.stock}}" style=width:60px>
+<select name=category style=width:140px>{% for c in cats %}<option {% if c==w.category %}selected{% endif %}>{{c}}</option>{% endfor %}</select>
+<button>Save</button>
+</form>
+<a href="/delete-wig/{{w.id}}" style=color:#ff4444;text-decoration:none;font-weight:700;margin-left:8px>❌ Delete</a>
+</div>{% endfor %}
+{% if not data.wigs %}<p>Empty — Upload your first wig! 10 categories ready: Pixie Cuts, Silky Straight, Accessories, Sun Glasses, Bundles...</p>{% endif %}
+
+<div style=margin-top:30px;padding:18px;background:rgba(236,72,153,0.1);border-radius:16px;border:1px solid rgba(236,72,153,0.3)>
+<h4>💡 How to Use</h4>
+<ul style=font-size:13px;line-height:1.8>
+<li>Upload from Gallery — Phone gallery works</li>
+<li>Edit: Change name, price, stock, category anytime — Save</li>
+<li>Search: Customers can search in shop</li>
+<li>Tap to view well: Customers tap card to see big image before buying</li>
+<li>Cart: Customers can Change Wig, Cancel, +/- quantity</li>
+<li>Discounts: CHRISTMAS15 15%, NEWYEAR30 30%, PIXIE20 20%, etc. — Works auto</li>
+<li>Delivery: 6 areas + NOTE motor rider depends — Shown 4 places</li>
+<li>Checkout → WhatsApp 0594204990 + MoMo 0594204990</li>
+</ul>
+</div>
+</body></html>
+"""
+
+@app.route('/')
+def home():
+    data=load_data()
+    return render_template_string(SHOP_TEMPLATE, wigs=data['wigs'], cats=CATEGORIES, delivery=DELIVERY)
+
+@app.route('/apply-discount')
+def apply_discount():
+    code=request.args.get('code','').upper().strip()
+    if code in DISCOUNT_CODES:
+        session['discount']=DISCOUNT_CODES[code]
+        return jsonify({"valid":True, **DISCOUNT_CODES[code]})
+    return jsonify({"valid":False})
+
+@app.route('/admin')
+def admin():
+    return render_template_string(ADMIN_TEMPLATE, data=load_data(), cats=CATEGORIES)
+
+@app.route('/add-wig', methods=['POST'])
+def add_wig():
+    data=load_data()
+    f=request.files.get('image')
+    if f and f.filename:
+        fname=str(uuid.uuid4())[:8]+'_'+secure_filename(f.filename)
+        path=os.path.join(UPLOAD_FOLDER,fname)
+        f.save(path)
+        data['wigs'].append({"id":str(uuid.uuid4()),"name":request.form.get('name'),"price":int(request.form.get('price',0)),"stock":int(request.form.get('stock',5)),"category":request.form.get('category'),"image":path})
+        save_data(data)
+    return redirect('/admin')
+
+@app.route('/edit-wig/<wid>', methods=['POST'])
+def edit_wig(wid):
+    data=load_data()
+    for w in data['wigs']:
+        if w['id']==wid:
+            w['name']=request.form.get('name')
+            w['price']=int(request.form.get('price',0))
+            w['stock']=int(request.form.get('stock',0))
+            w['category']=request.form.get('category')
+    save_data(data)
+    return redirect('/admin')
+
+@app.route('/delete-wig/<wid>')
+def del_wig(wid):
+    data=load_data()
+    data['wigs']=[w for w in data['wigs'] if w['id']!=wid]
+    save_data(data)
+    return redirect('/admin')
+
+if __name__=='__main__':
+    port=int(os.environ.get('PORT',5000))
+    app.run(host='0.0.0.0',port=port)
